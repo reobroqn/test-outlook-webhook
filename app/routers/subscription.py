@@ -118,7 +118,10 @@ async def create_outlook_subscription(request: Request):
         JSON response with subscription details or error message
     """
     # Generate the webhook URL using the current request's base URL
-    webhook_url = str(request.url_for("outlook_notify"))
+    if os.getenv("WEBHOOK_URL"):
+        webhook_url = os.getenv("WEBHOOK_URL")
+    else:
+        webhook_url = str(request.url_for("outlook_notify"))
     logger.info(f"🔗 Attempting to create subscription with URL: {webhook_url}")
     
     # Create the subscription and get the result
