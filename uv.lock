@@ -746,6 +746,8 @@ dependencies = [
     { name = "azure-identity", version = "1.23.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "fastapi" },
     { name = "fastapi-cli" },
+    { name = "imap-tools" },
+    { name = "imapclient" },
     { name = "loguru" },
     { name = "msal" },
     { name = "msgraph-sdk", version = "1.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
@@ -760,6 +762,8 @@ requires-dist = [
     { name = "azure-identity", specifier = ">=1.21.0" },
     { name = "fastapi", specifier = ">=0.111.0,<1.0.0" },
     { name = "fastapi-cli", specifier = ">=0.0.4,<1.0.0" },
+    { name = "imap-tools", specifier = ">=1.11.0" },
+    { name = "imapclient", specifier = ">=3.0.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "msal", specifier = ">=1.32.3" },
     { name = "msgraph-sdk", specifier = ">=1.16.0" },
@@ -1183,6 +1187,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f1/70/7703c29685631f5a7590aa73f1f1d3fa9a380e654b86af429e0934a32f7d/idna-3.10.tar.gz", hash = "sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9", size = 190490 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl", hash = "sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3", size = 70442 },
+]
+
+[[package]]
+name = "imap-tools"
+version = "1.11.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/76/2d74bf4702d7d9fb2dd056e058929961a05389be47b990f3275e8596012e/imap_tools-1.11.0.tar.gz", hash = "sha256:77b055d301f24e668ff54ad50cc32a36d1579c6aa9b26e5fb6501fb622feb6ea", size = 46191 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/8f/75524e1a040183cc437332e2de6e8f975c345fff8b5aaa35e0d20dec24f9/imap_tools-1.11.0-py3-none-any.whl", hash = "sha256:7c797b421fdf1b898b4ee0042fe02d10037d56f9acacca64086c2af36d830a24", size = 34855 },
+]
+
+[[package]]
+name = "imapclient"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/63/0eea51c9c263c18021cdc5866def55c98393f3bd74bbb8e3053e36f0f81a/IMAPClient-3.0.1.zip", hash = "sha256:78e6d62fbfbbe233e1f0e0e993160fd665eb1fd35973acddc61c15719b22bc02", size = 244222 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/8a/d1364c1c6d8f53ea390e8f1c6da220a4f9ee478ac8a473ae0669a2fb6f51/IMAPClient-3.0.1-py2.py3-none-any.whl", hash = "sha256:d77d77caa4123e0233b5cf2b9c54a078522e63270b88d3f48653a28637fd8828", size = 182490 },
 ]
 
 [[package]]
