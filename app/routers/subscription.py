@@ -1,9 +1,10 @@
 import os
-import datetime
-import requests
-from typing import Dict
-from msal import ConfidentialClientApplication
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, HTTPException
+from azure.identity import ClientSecretCredential
+from msgraph import GraphServiceClient
+from msgraph.generated.models.subscription import Subscription
 from loguru import logger
 from dotenv import load_dotenv
 
@@ -21,88 +22,86 @@ class MSGraphClient:
         self.scopes = ["https://graph.microsoft.com/.default"]
         
         self._validate_credentials()
+        self.graph_client = self._get_graph_client()
     
     def _validate_credentials(self):
         """Validate that all required credentials are present"""
-        if not all([self.client_id, self.client_secret, self.tenant_id, self.user_id]):
-            raise ValueError("Missing required Azure AD credentials")
+        missing = []
+        if not self.client_id: missing.append("AZURE_CLIENT_ID")
+        if not self.client_secret: missing.append("AZURE_CLIENT_SECRET")
+        if not self.tenant_id: missing.append("AZURE_TENANT_ID")
+        if not self.user_id: missing.append("AZURE_USER_ID")
+        
+        if missing:
+            error_msg = f"Missing required Azure AD credentials: {', '.join(missing)}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        logger.debug("✅ All required credentials are present")
     
-    def _get_token(self) -> str:
-        """Acquire an app-only (client credentials) access token using MSAL"""
-        app = ConfidentialClientApplication(
-            self.client_id,
-            authority=f"https://login.microsoftonline.com/{self.tenant_id}",
-            client_credential=self.client_secret,
+    def _get_graph_client(self) -> GraphServiceClient:
+        """Initialize and return a Graph client with client credentials"""
+        logger.debug("Initializing Graph client")
+        credential = ClientSecretCredential(
+            tenant_id=self.tenant_id,
+            client_id=self.client_id,
+            client_secret=self.client_secret
         )
-
-        result = app.acquire_token_silent(self.scopes, account=None)
-        if not result:
-            result = app.acquire_token_for_client(scopes=self.scopes)
-
-        if "access_token" not in result:
-            error = result.get("error_description", "Unknown error acquiring token")
-            logger.error(f"Failed to obtain access token: {error}")
-            raise HTTPException(status_code=500, detail="Failed to authenticate with Microsoft Graph")
-
-        return result["access_token"]
+        return GraphServiceClient(credential, scopes=self.scopes)
     
-    def create_subscription(self, webhook_url: str) -> Dict:
+    async def create_subscription(self, webhook_url: str) -> Dict[str, Any]:
         """
         Create or renew a Microsoft Graph subscription for new e-mails.
         
         Args:
-            webhook_url: The full URL where Microsoft Graph will send notifications
+            webhook_url: The HTTPS URL where Microsoft Graph will send notifications
             
         Returns:
             dict: A dictionary containing status and response data
         """
         try:
-            token = self._get_token()
-            expiration = (
-                datetime.datetime.utcnow() + datetime.timedelta(minutes=4200)
-            ).isoformat() + "Z"
-
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            }
-
-            body = {
-                "changeType": "created",
-                "notificationUrl": webhook_url,
-                "resource": f"/users/{self.user_id}/mailFolders('Inbox')/messages",
-                "expirationDateTime": expiration,
-                "clientState": "verify-me",
-            }
-
-            resp = requests.post(
-                "https://graph.microsoft.com/v1.0/subscriptions",
-                headers=headers,
-                json=body,
-                timeout=60
+            # Calculate expiration (max 3 days for message subscriptions)
+            expiration = datetime.now(timezone.utc) + timedelta(minutes=4230)  # ~3 days - 30 minutes
+            
+            subscription = Subscription(
+                change_type="created,updated",
+                notification_url=webhook_url,
+                resource=f"users/{self.user_id}/mailFolders('Inbox')/messages",
+                expiration_date_time=expiration,
+                client_state="verify-me"
             )
             
-            resp.raise_for_status()
+            logger.info(f"Creating subscription with webhook URL: {webhook_url}")
+            logger.info(f"Subscription will expire at: {expiration.isoformat()}")
             
-            result = resp.json()
-            logger.success(f"✅ Subscription created for {webhook_url}")
+            # Create subscription using Graph SDK
+            result = await self.graph_client.subscriptions.post(subscription)
+            
+            logger.success("✅ Subscription created successfully!")
+            logger.debug(f"Subscription details: {result}")
+            
             return {
                 "success": True,
                 "message": "Subscription created successfully",
                 "data": result
             }
             
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             error_msg = f"Failed to create subscription: {str(e)}"
-            if hasattr(e, 'response') and e.response is not None:
-                error_details = e.response.text
-                error_msg = f"{error_msg} - {error_details}"
-                logger.error(f"❌ {error_msg}")
+            logger.error(error_msg)
+            
+            # Add more detailed error information if available
+            error_details = {"type": type(e).__name__, "message": str(e)}
+            if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                error_details["response"] = e.response.text
+            
+            logger.debug(f"Error details: {error_details}")
             
             return {
                 "success": False,
                 "message": "Failed to create subscription",
-                "error": error_msg
+                "error": error_msg,
+                "error_details": error_details
             }
 
 # Create router and client instance
@@ -117,32 +116,67 @@ async def create_outlook_subscription(request: Request):
     Returns:
         JSON response with subscription details or error message
     """
-    # Generate the webhook URL using the current request's base URL
-    if os.getenv("WEBHOOK_URL"):
-        webhook_url = os.getenv("WEBHOOK_URL")
-    else:
-        # Ensure HTTPS is used for the webhook URL
-        webhook_url = str(request.url_for("outlook_notify")).replace('http://', 'https://')
-    logger.info(f"🔗 Attempting to create subscription with URL: {webhook_url}")
-    
-    # Create the subscription and get the result
-    result = graph_client.create_subscription(webhook_url=webhook_url)
-    
-    if result.get("success"):
-        return {
-            "status": "success",
-            "webhook_url": webhook_url,
-            "message": result["message"],
-            "subscription": result.get("data", {})
-        }
-    else:
-        error_msg = result.get("error", "Unknown error occurred")
-        logger.error(f"❌ {error_msg}")
+    try:
+        # Generate the webhook URL using the current request's base URL
+        if os.getenv("WEBHOOK_URL"):
+            webhook_url = os.getenv("WEBHOOK_URL")
+        else:
+            # Ensure HTTPS is used for the webhook URL
+            webhook_url = str(request.url_for("outlook_notify")).replace('http://', 'https://')
+        
+        logger.info(f"🔗 Attempting to create subscription with URL: {webhook_url}")
+        
+        if not webhook_url.startswith('https://'):
+            error_msg = "WEBHOOK_URL must use HTTPS"
+            logger.error(error_msg)
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "status": "error",
+                    "message": error_msg,
+                    "error": "Microsoft Graph requires HTTPS for webhook endpoints"
+                }
+            )
+        
+        # Create the subscription and get the result
+        result = await graph_client.create_subscription(webhook_url=webhook_url)
+        
+        if result.get("success"):
+            return {
+                "status": "success",
+                "webhook_url": webhook_url,
+                "message": result["message"],
+                "subscription": result.get("data", {})
+            }
+        else:
+            error_msg = result.get("error", "Unknown error occurred")
+            error_details = result.get("error_details", {})
+            logger.error(f"❌ {error_msg}")
+            
+            status_code = 500
+            if "Unauthorized" in error_msg or "AuthenticationFailed" in error_msg:
+                status_code = 401
+            elif "NotFound" in error_msg:
+                status_code = 404
+                
+            raise HTTPException(
+                status_code=status_code,
+                detail={
+                    "status": "error",
+                    "message": result.get("message", "Failed to create subscription"),
+                    "error": error_msg,
+                    "error_details": error_details
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"Unexpected error in create_outlook_subscription: {str(e)}")
+        logger.exception("Full error details:")
         raise HTTPException(
             status_code=500,
             detail={
                 "status": "error",
-                "message": result.get("message", "Failed to create subscription"),
-                "error": error_msg
+                "message": "An unexpected error occurred",
+                "error": str(e)
             }
         )
