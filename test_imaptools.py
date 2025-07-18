@@ -133,7 +133,7 @@ class IMAPIdleClient:
             while True:
                 try:
                     # Wait for notifications with a timeout
-                    responses = mailbox.idle.wait(timeout=45)  # 3 minutes
+                    responses = mailbox.idle.wait(timeout=45)  # 45 seconds
                     logger.debug(f"IDLE responses: {responses}")
                     
                     if responses:

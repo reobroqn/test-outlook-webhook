@@ -7,16 +7,11 @@ authors = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "azure-identity>=1.21.0",
     "fastapi>=0.111.0,<1.0.0",
     "fastapi-cli>=0.0.4,<1.0.0",
     "imap-tools>=1.11.0",
-    "imapclient>=3.0.1",
     "loguru>=0.7.3",
-    "msal>=1.32.3",
-    "msgraph-sdk>=1.16.0",
     "python-dotenv>=1.0.1",
-    "requests>=2.32.4",
 ]
 
 [tool.uv]
